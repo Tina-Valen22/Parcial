@@ -28,3 +28,6 @@ class EmpleadoRead(SQLModel):
     especialidad: str
     salario: float
     estado: str
+
+class EmpleadoConProyectos(EmpleadoRead):
+    proyectos: List["ProyectoSimple"] = []
