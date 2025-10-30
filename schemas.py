@@ -31,3 +31,25 @@ class EmpleadoRead(SQLModel):
 
 class EmpleadoConProyectos(EmpleadoRead):
     proyectos: List["ProyectoSimple"] = []
+
+class ProyectoCreate(SQLModel):
+    nombre: constr(min_length=2, max_length=120)
+    descripcion: Optional[constr(max_length=500)] = None
+    presupuesto: condecimal(gt=0)
+    estado: constr(min_length=3, max_length=20)
+    gerente_id: int
+
+    @validator("estado")
+    def estado_ok(cls, v):
+        return v.lower()
+
+class ProyectoUpdate(SQLModel):
+    nombre: Optional[constr(min_length=2, max_length=120)]
+    descripcion: Optional[constr(max_length=500)]
+    presupuesto: Optional[condecimal(gt=0)]
+    estado: Optional[constr(min_length=3, max_length=20)]
+    gerente_id: Optional[int]
+
+    @validator("estado")
+    def estado_ok(cls, v):
+        return v.lower()
