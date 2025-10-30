@@ -76,3 +76,6 @@ class ProyectoSimple(SQLModel):
     id: int
     nombre: str
     presupuesto: float
+
+EmpleadoConProyectos.update_forward_refs()
+ProyectoConGerenteYEmpleados.update_forward_refs()
