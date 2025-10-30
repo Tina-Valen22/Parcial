@@ -32,3 +32,7 @@ class ProyectoBase(SQLModel):
     descripcion: Optional[str] = None
     presupuesto: condecimal(gt=0)
     estado: constr(min_length=3, max_length=20)
+
+class Proyecto(ProyectoBase, table=True):
+    __tablename__ = "proyecto"
+    __table_args__ = (UniqueConstraint("nombre", name="uq_nombre_proyecto"),)
