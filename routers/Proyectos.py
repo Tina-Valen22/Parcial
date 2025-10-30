@@ -102,3 +102,16 @@ def eliminar_proyecto(id: int, session: Session = Depends(get_session)):
     session.delete(p)
     session.commit()
     return {"detail": "Proyecto eliminado correctamente"}
+
+#Listar empleados de un proyecto
+@router.get("/{id}/empleados", response_model=list[dict])
+def empleados_de_proyecto(id: int, session: Session = Depends(get_session)):
+    proyecto = session.get(Proyecto, id)
+    if not proyecto:
+        raise HTTPException(404, "Proyecto no encontrado")
+
+    empleados = [
+        {"id": e.id, "nombre": e.nombre, "especialidad": e.especialidad, "estado": e.estado}
+        for e in proyecto.empleados
+    ]
+    return empleados
