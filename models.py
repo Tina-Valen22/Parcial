@@ -26,3 +26,9 @@ def validar_estado(cls, v):
     if v.lower() not in estados:
         raise ValueError(f"Estado inválido. Debe ser uno de {estados}")
     return v.lower()
+
+class ProyectoBase(SQLModel):
+    nombre: constr(min_length=2, max_length=120)
+    descripcion: Optional[str] = None
+    presupuesto: condecimal(gt=0)
+    estado: constr(min_length=3, max_length=20)
