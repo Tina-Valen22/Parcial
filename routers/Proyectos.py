@@ -1,24 +1,22 @@
-from fastapi import APIRouter, Depends, HTTPException, Query, Body
-from typing import List, Optional
+from fastapi import APIRouter, Depends, HTTPException
 from sqlmodel import select, Session
 from database import get_session
 from models import Proyecto, Empleado
-from schemas import ProyectoCreate, ProyectoRead, ProyectoUpdate, ProyectoConGerenteYEmpleados, EmpleadoSimple
+from schemas import ProyectoCreate, ProyectoRead, ProyectoConGerenteYEmpleados
 from pydantic import BaseModel
 
 router = APIRouter(prefix="/proyectos", tags=["Proyectos"])
 
-@router.post("/", response_model=ProyectoRead, status_code=201)
+# Crear proyecto con gerente
+@router.post("/", response_model=ProyectoRead)
 def crear_proyecto(payload: ProyectoCreate, session: Session = Depends(get_session)):
-    existing = session.exec(select(Proyecto).where(Proyecto.nombre == payload.nombre)).first()
-    if existing:
-        raise HTTPException(status_code=409, detail="Ya existe un proyecto con ese nombre")
+    existente = session.exec(select(Proyecto).where(Proyecto.nombre == payload.nombre)).first()
+    if existente:
+        raise HTTPException(409, "Ya existe un proyecto con este nombre")
 
     gerente = session.get(Empleado, payload.gerente_id)
-    if not gerente:
-        raise HTTPException(status_code=400, detail="Gerente indicado no existe")
-    if gerente.estado != "activo":
-        raise HTTPException(status_code=400, detail="El gerente debe estar en estado 'activo'")
+    if not gerente or gerente.estado != "activo":
+        raise HTTPException(400, "Gerente no válido o inactivo")
 
     proyecto = Proyecto.from_orm(payload)
     session.add(proyecto)
@@ -26,164 +24,81 @@ def crear_proyecto(payload: ProyectoCreate, session: Session = Depends(get_sessi
     session.refresh(proyecto)
     return proyecto
 
-@router.get("/", response_model=List[ProyectoRead])
+
+# Listar proyectos (filtros por estado, presupuesto fijo)
+@router.get("/", response_model=list[ProyectoRead])
 def listar_proyectos(
-    estado: Optional[str] = Query(None),
-    presupuesto: Optional[float] = Query(None),
-    nombre: Optional[str] = Query(None),
+    estado: str | None = None,
+    presupuesto: float | None = None,
     session: Session = Depends(get_session)
 ):
-    statement = select(Proyecto)
-
+    q = select(Proyecto)
     if estado:
-        statement = statement.where(Proyecto.estado == estado.lower())
-    if presupuesto is not None:
-        statement = statement.where(Proyecto.presupuesto == presupuesto)
-    if nombre:
-        statement = statement.where(Proyecto.nombre.contains(nombre))
-
-    proyectos = session.exec(statement).all()
-    return proyectos
+        q = q.where(Proyecto.estado == estado.lower())
+    if presupuesto:
+        q = q.where(Proyecto.presupuesto == presupuesto)
+    return session.exec(q).all()
 
 
-@router.get("/buscar/{nombre_proyecto}", response_model=ProyectoRead)
-def buscar_proyecto_por_nombre(nombre_proyecto: str, session: Session = Depends(get_session)):
-    """
-    Busca un proyecto por nombre exacto (sin usar ID).
-    """
-    proyecto = session.exec(select(Proyecto).where(Proyecto.nombre == nombre_proyecto)).first()
+# Obtener proyecto con gerente y empleados
+@router.get("/{id}", response_model=ProyectoConGerenteYEmpleados)
+def obtener_proyecto(id: int, session: Session = Depends(get_session)):
+    proyecto = session.get(Proyecto, id)
     if not proyecto:
-        raise HTTPException(status_code=404, detail="Proyecto no encontrado")
+        raise HTTPException(404, "Proyecto no encontrado")
     return proyecto
 
 
-@router.get("/{proyecto_id}", response_model=ProyectoConGerenteYEmpleados)
-def obtener_proyecto_con_detalles(proyecto_id: int, session: Session = Depends(get_session)):
-    """
-    Obtiene proyecto con su gerente y empleados asignados.
-    """
-    proyecto = session.get(Proyecto, proyecto_id)
-    if not proyecto:
-        raise HTTPException(status_code=404, detail="Proyecto no encontrado")
-
-    gerente = None
-    if proyecto.gerente_id:
-        g = session.get(Empleado, proyecto.gerente_id)
-        if g:
-            gerente = EmpleadoSimple(id=g.id, nombre=g.nombre, especialidad=g.especialidad, estado=g.estado)
-
-    empleados_simple = [
-        EmpleadoSimple(id=e.id, nombre=e.nombre, especialidad=e.especialidad, estado=e.estado)
-        for e in proyecto.empleados
-    ]
-
-    return ProyectoConGerenteYEmpleados(
-        id=proyecto.id,
-        nombre=proyecto.nombre,
-        descripcion=proyecto.descripcion,
-        presupuesto=float(proyecto.presupuesto),
-        estado=proyecto.estado,
-        gerente_id=proyecto.gerente_id,
-        gerente=gerente,
-        empleados=empleados_simple
-    )
+# Buscar proyecto por nombre
+@router.get("/buscar/{nombre}", response_model=ProyectoRead)
+def buscar_proyecto(nombre: str, session: Session = Depends(get_session)):
+    p = session.exec(select(Proyecto).where(Proyecto.nombre == nombre)).first()
+    if not p:
+        raise HTTPException(404, "Proyecto no encontrado")
+    return p
 
 
-@router.put("/{proyecto_id}", response_model=ProyectoRead)
-def actualizar_proyecto(proyecto_id: int, payload: ProyectoUpdate, session: Session = Depends(get_session)):
-    proyecto = session.get(Proyecto, proyecto_id)
-    if not proyecto:
-        raise HTTPException(status_code=404, detail="Proyecto no encontrado")
-
-    data = payload.dict(exclude_unset=True)
-    if "nombre" in data:
-        otro = session.exec(
-            select(Proyecto).where(Proyecto.nombre == data["nombre"], Proyecto.id != proyecto_id)
-        ).first()
-        if otro:
-            raise HTTPException(status_code=409, detail="Otro proyecto con ese nombre ya existe")
-    if "gerente_id" in data:
-        gerente = session.get(Empleado, data["gerente_id"])
-        if not gerente:
-            raise HTTPException(status_code=400, detail="Gerente indicado no existe")
-        if gerente.estado != "activo":
-            raise HTTPException(status_code=400, detail="El gerente debe estar en estado 'activo'")
-
-    for k, v in data.items():
-        setattr(proyecto, k, v)
-    session.add(proyecto)
-    session.commit()
-    session.refresh(proyecto)
-    return proyecto
-
-
-@router.delete("/{proyecto_id}", status_code=200)
-def eliminar_proyecto(proyecto_id: int, session: Session = Depends(get_session)):
-    proyecto = session.get(Proyecto, proyecto_id)
-    if not proyecto:
-        raise HTTPException(status_code=404, detail="Proyecto no encontrado")
-    proyecto.empleados = []
-    session.delete(proyecto)
-    session.commit()
-    return {"detail": "Proyecto eliminado correctamente"}
-
-
-class AsignarEmpleadoBody(BaseModel):
+# signar empleado a proyecto
+class AsignarEmpleado(BaseModel):
     empleado_id: int
 
+@router.post("/{id}/asignar")
+def asignar_empleado(id: int, datos: AsignarEmpleado, session: Session = Depends(get_session)):
+    proyecto = session.get(Proyecto, id)
+    empleado = session.get(Empleado, datos.empleado_id)
 
-@router.post("/{proyecto_id}/asignar", status_code=201)
-def asignar_empleado(proyecto_id: int, body: AsignarEmpleadoBody, session: Session = Depends(get_session)):
-    proyecto = session.get(Proyecto, proyecto_id)
-    if not proyecto:
-        raise HTTPException(status_code=404, detail="Proyecto no encontrado")
-    empleado = session.get(Empleado, body.empleado_id)
-    if not empleado:
-        raise HTTPException(status_code=404, detail="Empleado no encontrado")
+    if not proyecto or not empleado:
+        raise HTTPException(404, "Proyecto o empleado no encontrado")
     if empleado.estado != "activo":
-        raise HTTPException(status_code=400, detail="Empleado no está en estado 'activo'")
-    if any(e.id == empleado.id for e in proyecto.empleados):
-        raise HTTPException(status_code=409, detail="Empleado ya asignado al proyecto")
+        raise HTTPException(400, "Empleado inactivo")
+    if empleado in proyecto.empleados:
+        raise HTTPException(409, "Empleado ya asignado a este proyecto")
 
     proyecto.empleados.append(empleado)
     session.add(proyecto)
     session.commit()
-    session.refresh(proyecto)
     return {"detail": "Empleado asignado correctamente"}
 
 
-@router.post("/{proyecto_id}/desasignar", status_code=200)
-def desasignar_empleado(proyecto_id: int, body: AsignarEmpleadoBody, session: Session = Depends(get_session)):
-    proyecto = session.get(Proyecto, proyecto_id)
+# Desasigna empleado
+@router.post("/{id}/desasignar")
+def desasignar_empleado(id: int, datos: AsignarEmpleado, session: Session = Depends(get_session)):
+    proyecto = session.get(Proyecto, id)
     if not proyecto:
-        raise HTTPException(status_code=404, detail="Proyecto no encontrado")
-    empleado = session.get(Empleado, body.empleado_id)
-    if not empleado:
-        raise HTTPException(status_code=404, detail="Empleado no encontrado")
+        raise HTTPException(404, "Proyecto no encontrado")
 
-    if not any(e.id == empleado.id for e in proyecto.empleados):
-        raise HTTPException(status_code=400, detail="Empleado no está asignado a este proyecto")
-
-    proyecto.empleados = [e for e in proyecto.empleados if e.id != empleado.id]
-    session.add(proyecto)
+    proyecto.empleados = [e for e in proyecto.empleados if e.id != datos.empleado_id]
     session.commit()
     return {"detail": "Empleado desasignado correctamente"}
 
 
-@router.get("/empleado/{empleado_id}", response_model=List[ProyectoRead])
-def proyectos_de_empleado(empleado_id: int, session: Session = Depends(get_session)):
-    empleado = session.get(Empleado, empleado_id)
-    if not empleado:
-        raise HTTPException(status_code=404, detail="Empleado no encontrado")
-    return empleado.proyectos
-
-
-@router.get("/{proyecto_id}/empleados", response_model=List[EmpleadoSimple])
-def empleados_de_proyecto(proyecto_id: int, session: Session = Depends(get_session)):
-    proyecto = session.get(Proyecto, proyecto_id)
-    if not proyecto:
-        raise HTTPException(status_code=404, detail="Proyecto no encontrado")
-    return [
-        EmpleadoSimple(id=e.id, nombre=e.nombre, especialidad=e.especialidad, estado=e.estado)
-        for e in proyecto.empleados
-    ]
+# Elimina proyecto (no borra empleados)
+@router.delete("/{id}")
+def eliminar_proyecto(id: int, session: Session = Depends(get_session)):
+    p = session.get(Proyecto, id)
+    if not p:
+        raise HTTPException(404, "Proyecto no encontrado")
+    p.empleados = []  # Limpia relaciones
+    session.delete(p)
+    session.commit()
+    return {"detail": "Proyecto eliminado correctamente"}
