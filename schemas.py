@@ -21,3 +21,10 @@ class EmpleadoUpdate(SQLModel):
     @validator("estado")
     def estado_ok(cls, v):
         return v.lower()
+
+class EmpleadoRead(SQLModel):
+    id: int
+    nombre: str
+    especialidad: str
+    salario: float
+    estado: str
