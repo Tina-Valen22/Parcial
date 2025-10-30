@@ -53,3 +53,26 @@ class ProyectoUpdate(SQLModel):
     @validator("estado")
     def estado_ok(cls, v):
         return v.lower()
+    
+class ProyectoRead(SQLModel):
+    id: int
+    nombre: str
+    descripcion: Optional[str]
+    presupuesto: float
+    estado: str
+    gerente_id: Optional[int]
+
+class EmpleadoSimple(SQLModel):
+    id: int
+    nombre: str
+    especialidad: str
+    estado: str
+
+class ProyectoConGerenteYEmpleados(ProyectoRead):
+    gerente: Optional[EmpleadoSimple] = None
+    empleados: List[EmpleadoSimple] = []
+
+class ProyectoSimple(SQLModel):
+    id: int
+    nombre: str
+    presupuesto: float
