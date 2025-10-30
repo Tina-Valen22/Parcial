@@ -19,3 +19,10 @@ class EmpleadoBase(SQLModel):
 class Empleado(EmpleadoBase, table=True):
     id: Optional[int] = Field(default=None, primary_key=True)
     proyectos: List["Proyecto"] = Relationship(back_populates="empleados", link_model=proyecto_empleado)
+
+@validator("estado")
+def validar_estado(cls, v):
+    estados = {"activo", "inactivo", "suspendido"}
+    if v.lower() not in estados:
+        raise ValueError(f"Estado inválido. Debe ser uno de {estados}")
+    return v.lower()
