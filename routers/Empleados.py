@@ -91,3 +91,16 @@ def eliminar_empleado(id: int, session: Session = Depends(get_session)):
     session.delete(emp)
     session.commit()
     return {"detail": "Empleado eliminado correctamente"}
+
+# Listar proyectos de un empleado
+@router.get("/{id}/proyectos", response_model=list[dict])
+def proyectos_de_empleado(id: int, session: Session = Depends(get_session)):
+    empleado = session.get(Empleado, id)
+    if not empleado:
+        raise HTTPException(404, "Empleado no encontrado")
+
+    proyectos = [
+        {"id": p.id, "nombre": p.nombre, "presupuesto": p.presupuesto, "estado": p.estado}
+        for p in empleado.proyectos
+    ]
+    return proyectos
