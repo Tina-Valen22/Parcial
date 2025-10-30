@@ -1,6 +1,6 @@
-from typing import List, Optional
-from sqlmodel import SQLModel, Field
-from pydantic import validator, condecimal, constr
+from sqlmodel import SQLModel
+from typing import Optional, List
+from pydantic import constr, condecimal
 
 class EmpleadoCreate(SQLModel):
     nombre: constr(min_length=2, max_length=100)
@@ -8,19 +8,11 @@ class EmpleadoCreate(SQLModel):
     salario: condecimal(gt=0)
     estado: constr(min_length=3, max_length=20)
 
-    @validator("estado")
-    def estado_ok(cls, v):
-        return v.lower()
-    
 class EmpleadoUpdate(SQLModel):
-    nombre: Optional[constr(min_length=2, max_length=100)]
-    especialidad: Optional[constr(min_length=2, max_length=80)]
-    salario: Optional[condecimal(gt=0)]
-    estado: Optional[constr(min_length=3, max_length=20)]
-
-    @validator("estado")
-    def estado_ok(cls, v):
-        return v.lower()
+    nombre: Optional[str]
+    especialidad: Optional[str]
+    salario: Optional[float]
+    estado: Optional[str]
 
 class EmpleadoRead(SQLModel):
     id: int
@@ -29,31 +21,21 @@ class EmpleadoRead(SQLModel):
     salario: float
     estado: str
 
-class EmpleadoConProyectos(EmpleadoRead):
-    proyectos: List["ProyectoSimple"] = []
 
 class ProyectoCreate(SQLModel):
     nombre: constr(min_length=2, max_length=120)
-    descripcion: Optional[constr(max_length=500)] = None
+    descripcion: Optional[str] = None
     presupuesto: condecimal(gt=0)
     estado: constr(min_length=3, max_length=20)
     gerente_id: int
 
-    @validator("estado")
-    def estado_ok(cls, v):
-        return v.lower()
-
 class ProyectoUpdate(SQLModel):
-    nombre: Optional[constr(min_length=2, max_length=120)]
-    descripcion: Optional[constr(max_length=500)]
-    presupuesto: Optional[condecimal(gt=0)]
-    estado: Optional[constr(min_length=3, max_length=20)]
+    nombre: Optional[str]
+    descripcion: Optional[str]
+    presupuesto: Optional[float]
+    estado: Optional[str]
     gerente_id: Optional[int]
 
-    @validator("estado")
-    def estado_ok(cls, v):
-        return v.lower()
-    
 class ProyectoRead(SQLModel):
     id: int
     nombre: str
@@ -68,14 +50,14 @@ class EmpleadoSimple(SQLModel):
     especialidad: str
     estado: str
 
-class ProyectoConGerenteYEmpleados(ProyectoRead):
-    gerente: Optional[EmpleadoSimple] = None
-    empleados: List[EmpleadoSimple] = []
-
 class ProyectoSimple(SQLModel):
     id: int
     nombre: str
     presupuesto: float
 
-EmpleadoConProyectos.update_forward_refs()
-ProyectoConGerenteYEmpleados.update_forward_refs()
+class EmpleadoConProyectos(EmpleadoRead):
+    proyectos: List[ProyectoSimple] = []
+
+class ProyectoConGerenteYEmpleados(ProyectoRead):
+    gerente: Optional[EmpleadoSimple] = None
+    empleados: List[EmpleadoSimple] = []
