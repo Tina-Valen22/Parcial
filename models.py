@@ -15,3 +15,7 @@ class EmpleadoBase(SQLModel):
     especialidad: constr(min_length=2, max_length=80)
     salario: condecimal(gt=0)
     estado: constr(min_length=3, max_length=20)
+
+class Empleado(EmpleadoBase, table=True):
+    id: Optional[int] = Field(default=None, primary_key=True)
+    proyectos: List["Proyecto"] = Relationship(back_populates="empleados", link_model=proyecto_empleado)
