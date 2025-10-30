@@ -36,3 +36,7 @@ class ProyectoBase(SQLModel):
 class Proyecto(ProyectoBase, table=True):
     __tablename__ = "proyecto"
     __table_args__ = (UniqueConstraint("nombre", name="uq_nombre_proyecto"),)
+
+gerente_id: Optional[int] = Field(default=None, foreign_key="empleado.id")
+gerente: Optional[Empleado] = Relationship()
+empleados: List[Empleado] = Relationship(back_populates="proyectos", link_model=proyecto_empleado)
